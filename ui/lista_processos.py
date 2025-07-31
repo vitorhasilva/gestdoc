@@ -16,7 +16,7 @@ def obter_processos():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT p.id, p.nome, c.nome, p.estado, COALESCE(p.updated_at, p.created_at)
+        SELECT p.id, p.nome, c.nome, p.estado, COALESCE(p.updated_at, p.created_at), p.vencimento
         FROM processos p
         JOIN clientes c ON p.cliente_id = c.id
     """)
@@ -33,20 +33,48 @@ def criar_interface(root):
     titulo = ttk.Label(root, text="Lista de Processos", font=("Helvetica", 16))
     titulo.pack(pady=10)
 
-    colunas = ("ID", "Nome do Processo", "Cliente", "Estado", "Última Atualização")
+    colunas = ("ID", "Nome do Processo", "Cliente", "Estado", "Última Atualização", "Vencimento")
     tabela = ttk.Treeview(root, columns=colunas, show="headings")
+
+    larguras = {
+        "ID": [50, "w"],
+        "Nome do Processo": [120, "center"],
+        "Cliente": [200, "w"],
+        "Estado": [100, "center"],
+        "Última Atualização": [130, "center"],
+        "Vencimento": [120, "center"],
+    }
+
     for col in colunas:
         tabela.heading(col, text=col)
-        tabela.column(col, width=160)
+        tabela.column(col, width=larguras.get(col, [100, "w"])[0], anchor=larguras.get(col, [100, "w"])[1])
     tabela.pack(expand=True, fill="both", padx=10, pady=10)
+    tabela.tag_configure("vencido", foreground="red")
+    tabela.tag_configure("breve", foreground="orange")
 
     def atualizar_tabela():
         for item in tabela.get_children():
             tabela.delete(item)
         for processo in obter_processos():
-            data_iso = processo[4]
+            id_, nome_proc, nome_cli, estado, data_iso, vencimento = processo
             data_formatada = datetime.fromisoformat(data_iso).strftime("%d/%m/%Y %H:%M")
-            tabela.insert("", "end", values=(*processo[:4], data_formatada))
+            venc_formatada = datetime.fromisoformat(vencimento).strftime("%d/%m/%Y") if vencimento else ""
+
+            tag = ""
+            if estado == "Fatura" and vencimento:
+                try:
+                    venc_data = datetime.fromisoformat(vencimento)
+                    dias_restantes = (venc_data - datetime.now()).days
+                    if dias_restantes < 0:
+                        tag = "vencido"
+                    elif dias_restantes <= 2:
+                        tag = "breve"
+                except Exception:
+                    pass
+
+            tabela.insert("", "end", values=(id_, nome_proc, nome_cli, estado, venc_formatada, data_formatada), tags=(tag,))
+
+
 
     atualizar_tabela()
     

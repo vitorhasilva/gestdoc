@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS processos (
     nome TEXT NOT NULL,
     estado TEXT NOT NULL CHECK (estado IN ('Fatura', 'Recibo', 'Nota de Crédito', 'Fatura Cancelada')),
     documento_path TEXT,
+    vencimento TEXT,
     cliente_id INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT,

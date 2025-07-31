@@ -5,19 +5,14 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from core.email_auto import enviar_email_processo_automatico
-
 import re
 
 DB_PATH = Path("gestor_processos.db")
 DOC_FOLDER = Path("docs")
 DOC_FOLDER.mkdir(exist_ok=True)
 
-
-
 def limpar_nome_ficheiro(nome):
-    # Substitui todos os caracteres que não sejam letras, números, hífens ou underscores por "_"
     return re.sub(r'[\\/:"*?<>|]', "_", nome)
-
 
 def obter_clientes():
     conn = sqlite3.connect(DB_PATH)
@@ -27,17 +22,14 @@ def obter_clientes():
     conn.close()
     return clientes
 
-def guardar_processo(nome, estado, cliente_id, documento_origem):
+def guardar_processo(nome, estado, cliente_id, documento_origem, vencimento=None):
     agora = datetime.now().isoformat()
-
-    # Buscar o nome do cliente a partir do ID
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT nome FROM clientes WHERE id = ?", (cliente_id,))
     resultado = cursor.fetchone()
     cliente_nome = resultado[0] if resultado else "ClienteDesconhecido"
 
-    # Gerar nome limpo do ficheiro
     nome_limpo = limpar_nome_ficheiro(f"{estado} {nome} - {cliente_nome}")
     documento_nome = f"{nome_limpo}.pdf"
     documento_destino = DOC_FOLDER / documento_nome
@@ -45,24 +37,20 @@ def guardar_processo(nome, estado, cliente_id, documento_origem):
 
     shutil.copy(documento_origem, documento_destino)
 
-    # Inserir processo
     cursor.execute("""
-        INSERT INTO processos (nome, estado, documento_path, cliente_id, created_at)
-        VALUES (?, ?, ?, ?, ?)
-    """, (nome, estado, str(documento_destino), cliente_id, agora))
+        INSERT INTO processos (nome, estado, documento_path, cliente_id, created_at, vencimento)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (nome, estado, str(documento_destino), cliente_id, agora, vencimento))
 
     conn.commit()
     conn.close()
     return documento_destino
 
-
 def janela_criar_processo(callback_atualizar=None):
     janela = tk.Toplevel()
     janela.title("Criar Novo Processo")
-    janela.geometry("400x350")
+    janela.geometry("400x400")
     janela.grab_set()
-
-    
 
     tk.Label(janela, text="Nome do Processo:").pack(pady=5)
     entry_nome = tk.Entry(janela, width=40)
@@ -75,7 +63,20 @@ def janela_criar_processo(callback_atualizar=None):
     combo_estado.pack()
     if combo_estado["values"]:
         estado_var.set(combo_estado["values"][0])
-    
+
+    label_venc = tk.Label(janela, text="Data de Vencimento (DD/MM/AAAA):")
+    entry_venc = tk.Entry(janela, width=20)
+
+    def mostrar_ou_ocultar_vencimento(event=None):
+        if estado_var.get() == "Fatura":
+            label_venc.pack(pady=5)
+            entry_venc.pack()
+        else:
+            label_venc.pack_forget()
+            entry_venc.pack_forget()
+
+    combo_estado.bind("<<ComboboxSelected>>", mostrar_ou_ocultar_vencimento)
+    mostrar_ou_ocultar_vencimento()
 
     tk.Label(janela, text="Cliente:").pack(pady=5)
     cliente_var = tk.StringVar()
@@ -86,7 +87,6 @@ def janela_criar_processo(callback_atualizar=None):
     combo_clientes.pack()
     if valores_clientes:
         cliente_var.set(valores_clientes[0])
-    
 
     documento_path = tk.StringVar()
     def escolher_documento():
@@ -109,8 +109,21 @@ def janela_criar_processo(callback_atualizar=None):
             messagebox.showerror("Erro", "Todos os campos são obrigatórios.")
             return
 
+        vencimento = None
+        if estado == "Fatura":
+            valor_venc = entry_venc.get().strip()
+            if not valor_venc:
+                messagebox.showerror("Erro", "A data de vencimento é obrigatória para Faturas.")
+                return
+            try:
+                venc_dt = datetime.strptime(valor_venc, "%d/%m/%Y")
+                vencimento = venc_dt.isoformat()
+            except ValueError:
+                messagebox.showerror("Erro", "Data de vencimento inválida. Use o formato DD/MM/AAAA.")
+                return
+
         cliente_id = int(cliente.split(" - ")[0])
-        caminho_documento = guardar_processo(nome, estado, cliente_id, documento)
+        caminho_documento = guardar_processo(nome, estado, cliente_id, documento, vencimento)
 
         try:
             enviar_email_processo_automatico(nome, estado, cliente_id, str(caminho_documento))
@@ -123,8 +136,6 @@ def janela_criar_processo(callback_atualizar=None):
         janela.destroy()
 
     tk.Button(janela, text="Criar Processo", command=submeter).pack(pady=20)
-
-    # janela.mainloop()
 
 if __name__ == "__main__":
     janela_criar_processo()
