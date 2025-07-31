@@ -59,15 +59,15 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
             messagebox.showerror("Erro", "Documento não encontrado.")
 
     def reenviar_email():
-        from core.modelos_email import obter_modelo_email
-        modelo = obter_modelo_email(estado)
+        from core.email_auto import obter_modelo_email_por_estado
+        modelo = obter_modelo_email_por_estado(estado)
         if not modelo:
             messagebox.showerror("Erro", f"Modelo de email não encontrado para o estado '{estado}'.")
             return
         try:
             enviar_email(
                 destinatario=email_cliente,
-                assunto=f"Documento do processo: {nome}",
+                assunto=f"{estado} {nome} | {nome_cliente}",
                 mensagem_texto=modelo,
                 caminho_pdf=doc_path,
                 nome_cliente=nome_cliente,
