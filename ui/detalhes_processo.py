@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from core.email_handler import enviar_email
 from core.utils import limpar_nome_ficheiro
+from core.email_auto import obter_modelo_email_por_estado
 
 DB_PATH = Path("gestor_processos.db")
 
@@ -32,30 +33,24 @@ def obter_detalhes_processo(processo_id):
 def atualizar_estado_processo(processo_id, novo_estado, novo_documento, novo_nome):
     agora = datetime.now().isoformat()
 
-    # Obter o nome antigo antes da alteração
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT nome, estado FROM processos WHERE id = ?", (processo_id,))
     nome_antigo, estado_antigo = cursor.fetchone()
 
-
-    # Atualizar processo
     cursor.execute("""
         UPDATE processos
         SET estado = ?, documento_path = ?, nome = ?, updated_at = ?
         WHERE id = ?
     """, (novo_estado, novo_documento, novo_nome, agora, processo_id))
 
-    # Guardar no histórico o nome antigo
     cursor.execute("""
         INSERT INTO historico (processo_id, nome, estado, data)
         VALUES (?, ?, ?, ?)
     """, (processo_id, nome_antigo, estado_antigo, agora))
 
-
     conn.commit()
     conn.close()
-
 
 def obter_historico_processo(processo_id):
     conn = sqlite3.connect(DB_PATH)
@@ -68,7 +63,6 @@ def obter_historico_processo(processo_id):
     resultado = cursor.fetchall()
     conn.close()
     return resultado
-
 
 def janela_detalhes_processo(processo_id, atualizar_callback=None):
     dados = obter_detalhes_processo(processo_id)
@@ -90,7 +84,6 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
             messagebox.showerror("Erro", "Documento não encontrado.")
 
     def reenviar_email():
-        from core.email_auto import obter_modelo_email_por_estado
         modelo = obter_modelo_email_por_estado(estado)
         if not modelo:
             messagebox.showerror("Erro", f"Modelo de email não encontrado para o estado '{estado}'.")
@@ -108,6 +101,36 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
         except Exception as e:
             messagebox.showerror("Erro ao enviar email", str(e))
 
+    def lembrar_cliente():
+        modelo = obter_modelo_email_por_estado("Atraso")
+        if not modelo:
+            messagebox.showerror("Erro", "Modelo de email 'Atraso' não encontrado.")
+            return
+        try:
+            enviar_email(
+                destinatario=email_cliente,
+                assunto=f"Lembrete: Fatura {nome} | {nome_cliente}",
+                mensagem_texto=modelo,
+                caminho_pdf=doc_path,
+                nome_cliente=nome_cliente,
+                nome_processo=nome
+            )
+            agora = datetime.now().isoformat()
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO historico (processo_id, nome, estado, data)
+                VALUES (?, ?, ?, ?)
+            """, (processo_id, nome, "Lembrete", agora))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Lembrete enviado", "O cliente foi notificado com sucesso.")
+            if atualizar_callback:
+                atualizar_callback()
+            janela.destroy()
+        except Exception as e:
+            messagebox.showerror("Erro ao enviar email", str(e))
+
     def atualizar_estado_para(novo_estado):
         novo_nome = tk.simpledialog.askstring(
             "Novo Nome", f"Introduz o novo nome para o processo ({novo_estado}):",
@@ -115,12 +138,11 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
         )
         if not novo_nome:
             return
-        
+
         caminho = filedialog.askopenfilename(filetypes=[("PDF", "*.pdf")])
         if not caminho:
             return
         nome_ficheiro = limpar_nome_ficheiro(f"{novo_estado} {novo_nome} - {nome_cliente}.pdf")
-        # Apagar documento antigo se existir
         try:
             antigo = Path(doc_path)
             if antigo.exists():
@@ -128,12 +150,10 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
         except Exception as e:
             print(f"Erro ao apagar documento antigo: {e}")
 
-        # Guardar novo documento
         destino = Path("docs") / nome_ficheiro
         destino.write_bytes(Path(caminho).read_bytes())
 
         atualizar_estado_processo(processo_id, novo_estado, str(destino), novo_nome)
-        from core.email_auto import obter_modelo_email_por_estado
         modelo = obter_modelo_email_por_estado(novo_estado)
         if not modelo:
             messagebox.showerror("Erro", f"Modelo de email não encontrado para o estado '{novo_estado}'.")
@@ -155,7 +175,6 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
         if atualizar_callback:
             atualizar_callback()
 
-    # Labels com info
     ttk.Label(janela, text=f"{estado} {nome}", font=("Arial", 12, "bold")).pack(pady=5)
     ttk.Label(janela, text=f"Cliente: {nome_cliente} ({email_cliente})").pack()
     ttk.Label(janela, text=f"Estado atual: {estado}").pack()
@@ -164,10 +183,16 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
         ttk.Label(janela, text=f"Última atualização: {datetime.fromisoformat(atualizado_em).strftime('%d/%m/%Y %H:%M')}").pack()
 
     ttk.Button(janela, text="Abrir Documento", command=abrir_documento).pack(pady=10)
-    ttk.Button(janela, text="Reenviar Email", command=reenviar_email).pack(pady=5)
+
+    if estado == "Fatura":
+        frame_acoes = ttk.Frame(janela)
+        frame_acoes.pack(pady=5)
+        ttk.Button(frame_acoes, text="Reenviar Email", command=reenviar_email).pack(side="left", padx=5)
+        ttk.Button(frame_acoes, text="Lembrar Cliente", command=lembrar_cliente).pack(side="left", padx=5)
+    else:
+        ttk.Button(janela, text="Reenviar Email", command=reenviar_email).pack(pady=5)
 
     ttk.Label(janela, text="Histórico de alterações:", font=("Arial", 10, "bold")).pack(pady=(10, 2))
-    
     historico_frame = ttk.Frame(janela)
     historico_frame.pack(fill="both", expand=True, padx=10)
 
@@ -181,15 +206,14 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
     for estado_antigo, nome_antigo, data in obter_historico_processo(processo_id):
         data_formatada = datetime.fromisoformat(data).strftime('%d/%m/%Y %H:%M')
         tabela_historico.insert("", "end", values=(estado_antigo, nome_antigo, data_formatada))
-        
-        
-    # Botões de estado possíveis
+
     if estado in ESTADOS_POSSIVEIS:
         frame_botoes = ttk.Frame(janela)
         frame_botoes.pack(pady=10)
         for novo_estado in ESTADOS_POSSIVEIS[estado]:
             ttk.Button(frame_botoes, text=f"Atualizar para {novo_estado}", command=lambda s=novo_estado: atualizar_estado_para(s)).pack(side="left", padx=5)
-    else: 
+    else:
         ttk.Label(janela, text="").pack(pady=10)
+
 # Exemplo de uso:
 # janela_detalhes_processo(3)

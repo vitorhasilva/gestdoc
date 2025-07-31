@@ -19,6 +19,9 @@ def obter_processos():
         SELECT p.id, p.nome, c.nome, p.estado, COALESCE(p.updated_at, p.created_at), p.vencimento
         FROM processos p
         JOIN clientes c ON p.cliente_id = c.id
+        ORDER BY 
+            CASE WHEN p.estado = 'Fatura' THEN 0 ELSE 1 END,
+            p.vencimento ASC
     """)
     resultados = cursor.fetchall()
     conn.close()
@@ -52,11 +55,19 @@ def criar_interface(root):
     tabela.tag_configure("vencido", foreground="red")
     tabela.tag_configure("breve", foreground="orange")
 
+    mostrar_recibos = tk.BooleanVar(value=False)
+    mostrar_notas = tk.BooleanVar(value=False)
+
+
     def atualizar_tabela():
         for item in tabela.get_children():
             tabela.delete(item)
         for processo in obter_processos():
             id_, nome_proc, nome_cli, estado, data_iso, vencimento = processo
+            if (estado == "Recibo" and not mostrar_recibos.get()) or \
+            (estado == "Nota de Crédito" and not mostrar_notas.get()):
+                continue
+            
             data_formatada = datetime.fromisoformat(data_iso).strftime("%d/%m/%Y %H:%M")
             venc_formatada = datetime.fromisoformat(vencimento).strftime("%d/%m/%Y") if vencimento else ""
 
@@ -92,6 +103,12 @@ def criar_interface(root):
     ttk.Button(frame_botoes, text="Gerir Clientes", command=lambda: janela_gerir_clientes()).pack(side="left", padx=5)
     ttk.Button(frame_botoes, text="Modelos de Email", command=lambda: janela_modelos_email()).pack(side="left", padx=5)
     ttk.Button(frame_botoes, text="Configuração de Email", command=lambda: janela_configuracao_smtp(root)).pack(side="left", padx=5)
+
+    frame_filtros = ttk.Frame(root)
+    frame_filtros.pack()
+
+    ttk.Checkbutton(frame_filtros, text="Mostrar Recibos", variable=mostrar_recibos, command=atualizar_tabela).pack(side="left", padx=5)
+    ttk.Checkbutton(frame_filtros, text="Mostrar Notas de Crédito", variable=mostrar_notas, command=atualizar_tabela).pack(side="left", padx=5)
 
     tabela.bind("<Double-1>", abrir_detalhes)
     # root.mainloop()

@@ -62,7 +62,8 @@ if cursor.fetchone()[0] == 0:
         ("Fatura", "Estimado Cliente [NOME_CLIENTE],\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]"),
         ("Recibo", "Estimado Cliente [NOME_CLIENTE],\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]"),
         ("Nota de Crédito", "Estimado Cliente [NOME_CLIENTE],\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]"),
-        ("Fatura Cancelada", "Estimado Cliente [NOME_CLIENTE],\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]")
+        ("Fatura Cancelada", "Estimado Cliente [NOME_CLIENTE],\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]"),
+        ("Atraso", "Estimado Cliente [NOME_CLIENTE],\n\nA Fatura [NOME_PROCESSO] encontra se vencida.\n\nEm anexo encontra o documento, [NOME_DOCUMENTO]")
     ]
     cursor.executemany("INSERT INTO modelos_email (tipo, mensagem) VALUES (?, ?)", modelos_iniciais)
 
