@@ -19,7 +19,7 @@ def carregar_config_smtp():
 def janela_configuracao_smtp(master):
     janela = tk.Toplevel(master)
     janela.title("Configuração de Email (SMTP)")
-    janela.geometry("420x400")
+    janela.geometry("340x250")
     janela.grab_set()
 
     config = carregar_config_smtp()
