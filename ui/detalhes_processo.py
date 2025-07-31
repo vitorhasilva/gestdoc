@@ -27,15 +27,15 @@ def obter_detalhes_processo(processo_id):
     conn.close()
     return resultado
 
-def atualizar_estado_processo(processo_id, novo_estado, novo_documento):
+def atualizar_estado_processo(processo_id, novo_estado, novo_documento, novo_nome):
     agora = datetime.now().isoformat()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE processos
-        SET estado = ?, documento_path = ?, updated_at = ?
+        SET estado = ?, documento_path = ?, nome = ?, updated_at = ?
         WHERE id = ?
-    """, (novo_estado, novo_documento, agora, processo_id))
+    """, (novo_estado, novo_documento, novo_nome, agora, processo_id))
     conn.commit()
     conn.close()
 
@@ -78,16 +78,39 @@ def janela_detalhes_processo(processo_id, atualizar_callback=None):
             messagebox.showerror("Erro ao enviar email", str(e))
 
     def atualizar_estado_para(novo_estado):
+        novo_nome = tk.simpledialog.askstring(
+            "Novo Nome", f"Introduz o novo nome para o processo ({novo_estado}):",
+            initialvalue=f"{nome}"
+        )
+        if not novo_nome:
+            return
+        
         caminho = filedialog.askopenfilename(filetypes=[("PDF", "*.pdf")])
         if not caminho:
             return
-        nome_ficheiro = limpar_nome_ficheiro(f"{novo_estado} {nome} - {nome_cliente}.pdf")
-        destino = Path("documentos") / nome_ficheiro
+        nome_ficheiro = limpar_nome_ficheiro(f"{novo_estado} {novo_nome} - {nome_cliente}.pdf")
+        destino = Path("docs") / nome_ficheiro
         destino.write_bytes(Path(caminho).read_bytes())
 
-        atualizar_estado_processo(processo_id, novo_estado, str(destino))
-        reenviar_email()
-        messagebox.showinfo("Atualizado", f"Estado atualizado para {novo_estado}.")
+        atualizar_estado_processo(processo_id, novo_estado, str(destino), novo_nome)
+        from core.email_auto import obter_modelo_email_por_estado
+        modelo = obter_modelo_email_por_estado(novo_estado)
+        if not modelo:
+            messagebox.showerror("Erro", f"Modelo de email não encontrado para o estado '{novo_estado}'.")
+            return
+        try:
+            enviar_email(
+                destinatario=email_cliente,
+                assunto=f"{novo_estado} {novo_nome} | {nome_cliente}",
+                mensagem_texto=modelo,
+                caminho_pdf=str(destino),
+                nome_cliente=nome_cliente,
+                nome_processo=novo_nome
+            )
+            messagebox.showinfo("Atualizado", f"Estado atualizado para {novo_estado} e email enviado.")
+        except Exception as e:
+            messagebox.showerror("Erro ao enviar email", str(e))
+
         janela.destroy()
         if atualizar_callback:
             atualizar_callback()

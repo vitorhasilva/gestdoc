@@ -55,7 +55,7 @@ def criar_interface(root):
         if item_selecionado:
             valores = tabela.item(item_selecionado, "values")
             id_processo = valores[0]  # ID é o primeiro campo
-            janela_detalhes_processo(int(id_processo))
+            janela_detalhes_processo(int(id_processo),atualizar_callback=atualizar_tabela)
 
     frame_botoes = ttk.Frame(root)
     frame_botoes.pack(pady=10)
