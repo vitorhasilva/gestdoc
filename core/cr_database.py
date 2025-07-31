@@ -42,6 +42,18 @@ CREATE TABLE IF NOT EXISTS modelos_email (
 )
 """)
 
+# Tabela de Histórico de Processos
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS historico (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    processo_id INTEGER NOT NULL,
+    nome TEXT NOT NULL,
+    estado TEXT NOT NULL,
+    data TEXT NOT NULL,
+    FOREIGN KEY(processo_id) REFERENCES processos(id) ON DELETE CASCADE
+);
+""")
+
 # Inserir modelos predefinidos se ainda não existirem
 cursor.execute("SELECT COUNT(*) FROM modelos_email")
 if cursor.fetchone()[0] == 0:
