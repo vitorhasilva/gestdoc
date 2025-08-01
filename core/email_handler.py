@@ -60,6 +60,10 @@ def enviar_email(destinatario, assunto, mensagem_texto, caminho_pdf, nome_client
     msg["Subject"] = assunto
     msg["From"] = formataddr((config["nome"], config["email"]))
     msg["To"] = destinatario
+    msg["Bcc"] = config["email"]
+    
+    msg["Disposition-Notification-To"] = config["email"]
+    msg["Return-Receipt-To"] = config["email"]
 
     # Processar corpo e assinatura
     corpo_processado = processar_mensagem(mensagem_texto, nome_cliente, nome_processo, nome_documento)
