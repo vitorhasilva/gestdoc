@@ -36,7 +36,7 @@ def criar_interface(root):
     titulo = ttk.Label(root, text="Lista de Processos", font=("Helvetica", 16))
     titulo.pack(pady=10)
 
-    colunas = ("ID", "Nome do Processo", "Cliente", "Estado", "Última Atualização", "Vencimento")
+    colunas = ("ID", "Nome do Processo", "Cliente", "Estado", "Vencimento", "Última Atualização")
     tabela = ttk.Treeview(root, columns=colunas, show="headings")
 
     larguras = {
